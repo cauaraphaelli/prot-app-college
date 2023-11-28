@@ -106,25 +106,33 @@ class FiltroPerfilUsuario:
         self.faixa_salarial = faixa_salarial
         self.local_moradia = local_moradia
 
-    def filtrar_universidades(self, universidades):
+    def verificar_capacidade_pagamento(self, mensalidade, despesas_fixas, outras_dividas):
+        fator_seguranca = 0.8  # Fator de segurança para despesas fixas e outras dívidas
+
+        # Calcula o valor disponível após descontar despesas fixas e outras dívidas
+        salario_disponivel = self.faixa_salarial * fator_seguranca - despesas_fixas - outras_dividas
+
+        # Verifica se o valor disponível é suficiente para cobrir a mensalidade
+        return salario_disponivel >= mensalidade
+
+    def filtrar_universidades(self, universidades, distancia_maxima):
         universidades_filtradas = []
         coordenadas_usuario = obter_coordenadas(self.local_moradia)
 
         for nome, universidade in universidades.items():
-            if coordenadas_usuario and self.verificar_acessibilidade(universidade, coordenadas_usuario):
+            if coordenadas_usuario and self.verificar_acessibilidade(universidade, coordenadas_usuario, distancia_maxima):
                 universidades_filtradas.append(universidade)
 
         return universidades_filtradas
 
-    def verificar_acessibilidade(self, universidade, coordenadas_usuario):
-        distancia_limite_km = 700  # Limite de distância em quilômetros
-
+    def verificar_acessibilidade(self, universidade, coordenadas_usuario, distancia_maxima):
         # Verifica se a universidade está dentro do limite de distância
         distancia = calcular_distancia(coordenadas_usuario, obter_coordenadas(universidade.localidade))
         return (
             universidade.valor_vestibular <= self.faixa_salarial
-            and distancia <= distancia_limite_km
+            and distancia <= distancia_maxima
         )
+
     def ordenar_universidades(self, universidades):
         opcoes_ordenacao = [
             inquirer.List("criterio", message="Escolha o critério de ordenação:",
@@ -167,25 +175,34 @@ class FiltroPerfilUsuario:
             return universidades
 
 # Exemplo de uso:
-faixa_salarial_usuario = float(input("Digite sua faixa salarial: "))
+faixa_salarial_usuario = float(input("Digite seu salário: "))
 local_moradia_usuario = obter_localidade_valida()
 
 # Verifica se a localidade foi selecionada com sucesso
 if local_moradia_usuario is not None:
     usuario = FiltroPerfilUsuario(faixa_salarial=faixa_salarial_usuario, local_moradia=local_moradia_usuario)
 
+    despesas_fixas = float(input("Digite o valor das despesas fixas mensais: "))
+    outras_dividas = float(input("Digite o valor de outras dívidas mensais: "))
+
     # Passa a lista de universidades (o dicionário) para o método filtrar_universidades
-    universidades_recomendadas = usuario.filtrar_universidades(universidades)
+    distancia_maxima = float(input("Digite a distância máxima que você está disposto a considerar (em km): "))
+    universidades_recomendadas = usuario.filtrar_universidades(universidades, distancia_maxima)
 
-    # Ordena as universidades de acordo com o critério escolhido pelo usuário
-    universidades_ordenadas = usuario.ordenar_universidades(universidades_recomendadas)
+    # Verifica se há universidades recomendadas
+    if not universidades_recomendadas:
+        print("Desculpe, não encontramos universidades que atendam aos seus critérios. Considere ajustar suas preferências.")
+    else:
+        # Ordena as universidades de acordo com o critério escolhido pelo usuário
+        universidades_ordenadas = usuario.ordenar_universidades(universidades_recomendadas)
 
-    print("\nUniversidades Recomendadas:")
-    for universidade in universidades_ordenadas:
-        print(
-            f"{universidade.nome} - Valor do Vestibular: R${universidade.valor_vestibular}, "
-            f"Desconto Matrícula: {universidade.desconto_matricula*100}%, "
-            f"Curso: {universidade.curso.nome} - Mensalidade: R${universidade.curso.mensalidade}, "
-            f"Localidade: {universidade.localidade}, "
-            f"Distância: {calcular_distancia(obter_coordenadas(local_moradia_usuario), obter_coordenadas(universidade.localidade)):.2f} km"
-        )
+        print("\nUniversidades Recomendadas:")
+        for universidade in universidades_ordenadas:
+            if usuario.verificar_capacidade_pagamento(universidade.curso.mensalidade, despesas_fixas, outras_dividas):
+                print(
+                    f"{universidade.nome} - Valor do Vestibular: R${universidade.valor_vestibular}, "
+                    f"Desconto Matrícula: {universidade.desconto_matricula*100}%, "
+                    f"Curso: {universidade.curso.nome} - Mensalidade: R${universidade.curso.mensalidade}, "
+                    f"Localidade: {universidade.localidade}, "
+                    f"Distância: {calcular_distancia(obter_coordenadas(local_moradia_usuario), obter_coordenadas(universidade.localidade)):.2f} km"
+                )
